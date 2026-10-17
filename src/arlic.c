@@ -9,7 +9,7 @@ Binary Binary_CreateNewBinary()
 	if(file == NULL)
 	{
 		printf("ERROR, can't created the file\n");
-		exit(1);	
+		return bin;	
 	}
 	
 	bin.data = malloc(1);
@@ -39,7 +39,7 @@ Binary Binary_LoadFromFile(const char *filePath)
 	if(file == NULL)
 	{
 		printf("ERROR, can't open %s", filePath);
-		exit(1);	
+		return bin;	
 	}
 	
 	fseek(file, 0, SEEK_END);
@@ -482,7 +482,7 @@ u8 Binary_SafeBinaryInFile(Binary *bin, char *filePath)
 	if(bin == NULL || bin->data == NULL)
 	{
 		printf("ERROR, this binary don't have data\n");
-		return;	
+		return 0;	
 	}
 	
 	FILE* binaryFile = fopen(filePath, "wb");
@@ -490,7 +490,7 @@ u8 Binary_SafeBinaryInFile(Binary *bin, char *filePath)
 	if(binaryFile == NULL)
 	{
 		printf("ERROR, can't create file\n");
-		return;
+		return 0;
 	}	
 	
 	size_t bytesCopied = fwrite(bin->data, 1, bin->size, binaryFile);
