@@ -1,4 +1,4 @@
-\#Arlic: Another Romhacking Library In C
+# Arlic: Another Romhacking Library In C
 
 
 
@@ -10,7 +10,7 @@ Me inspiré un poco en Yarhl de Pleonex :D
 
 
 
-\#Contribuir
+# Contribuir
 
 
 
