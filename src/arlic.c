@@ -1,63 +1,182 @@
 #include "arlic.h"
 
-Binary Binary_CreateNewBinary()
+struct ArlicBinary
 {
-	Binary bin;
+	u8 *data;
+    size_t position;
+	size_t size;
+	u8 endianness;
 
-	FILE *file = fopen("untiled", "wb");
-	
-	if(file == NULL)
+};
+
+
+u16 ArlicBinary_Create(ArlicBinary **bin, size_t initialSize, u16 endianness)
+{
+	if(bin == NULL)
 	{
-		printf("ERROR, can't created the file\n");
-		return bin;	
+		
+		ARLIC_LOG("ERROR IN: ArlicBinary_Create(), ArlicBinary **bin can't be NULL.... WTF, why you do that!!??\n");
+		return ARLIC_ERROR;	
 	}
 	
-	bin.data = malloc(1);
+	*bin = malloc(sizeof(ArlicBinary));
 	
-	if(bin.data == NULL)
+	if(*bin == NULL)
 	{
-		printf("ERROR, can't allocate  memory for the file\n");	
+		ARLIC_LOG("ERROR IN: ArlicBinary_Create(), ArlicBinary *bin can't be created\n");
+		return ARLIC_ERROR;
 	}
 	
-	bin.data[0] = '\0';
-	fclose(file);
+	if(initialSize == 0)
+	{
+		initialSize = 1;
+	}
+		
+	(*bin)->data = calloc(initialSize, 1);	
 	
-	bin.size = 1;
-	bin.position = 0x0;
-	bin.endianness = ENDIANNESS_LITTLE;
+	if((*bin)->data == NULL)
+	{
+		ARLIC_LOG("ERROR IN: ArlicBinary_Create(), can't allocate memory for the binary data\n");
+		free(*bin);
+		*bin = NULL;
+		return ARLIC_ERROR;
+	}
 	
-	return bin;
+	(*bin)->data[initialSize - 1] = '\0';
+	(*bin)->size = initialSize;
+	(*bin)->position = 0x0;
+	
+	
+	if(endianness == ARLIC_ENDIANNESS_BIG)
+	{
+		(*bin)->endianness = ARLIC_ENDIANNESS_BIG;		
+	}
+	else
+	{
+		(*bin)->endianness = ARLIC_ENDIANNESS_LITTLE;	
+	}
+
+	return ARLIC_OK;
 }
 
-Binary Binary_LoadFromFile(const char *filePath)
+
+u16 ArlicBinary_LoadFromFile(ArlicBinary **bin, u16 endianness, const char *filePath)
 {
-	Binary bin;
-	u64 size;
+	if(bin == NULL)
+	{
+		
+		ARLIC_LOG("ERROR IN: ArlicBinary_LoadFromFile(), ArlicBinary **bin can't be NULL.... WTF, why you do that!!??\n");
+		return ARLIC_ERROR;	
+	}
+	
+	if (filePath == NULL)
+	{
+		ARLIC_LOG("ERROR IN: ArlicBinary_LoadFromFile(), const char *filePath can't be NULL\n");
+		return ARLIC_ERROR;
+	}
+
+	*bin = malloc(sizeof(ArlicBinary));
+	
+	if(*bin == NULL)
+	{
+		ARLIC_LOG("ERROR IN: ArlicBinary_LoadFromFile(), ArlicBinary *bin can't be created\n");
+		return ARLIC_ERROR;
+	}
 	
 	FILE *file = fopen(filePath, "rb");
 	
 	if(file == NULL)
 	{
-		printf("ERROR, can't open %s", filePath);
-		return bin;	
+		ARLIC_LOG("ERROR IN: ArlicBinary_LoadFromFile(), can't load the File\n");
+		return ARLIC_ERROR;
 	}
 	
 	fseek(file, 0, SEEK_END);
-	size = ftell(file);
+	size_t size = ftell(file);
 	fseek(file, 0, SEEK_SET);
-	bin.data = malloc(size);
-	fread(bin.data, 1, size, file);
+	
+	(*bin)->data = malloc(size);
+	
+	if((*bin)->data == NULL)
+	{
+		ARLIC_LOG("ERROR IN: ArlicBinary_LoadFromFile(), can't allocate memory for the binary data\n");
+		free(*bin);
+		*bin = NULL;
+		fclose(file);
+		return ARLIC_ERROR;
+	}
+	
+	fread((*bin)->data, 1, size, file);
 	fclose(file);
 	
-	bin.size = size;
-	bin.path = filePath;
-	bin.position = 0x0;
-	bin.endianness = ENDIANNESS_LITTLE;
+	(*bin)->size = size;
+	(*bin)->position = 0x0;
 	
-	return bin;
+	
+	if(endianness == ARLIC_ENDIANNESS_BIG)
+	{
+		(*bin)->endianness = ARLIC_ENDIANNESS_BIG;		
+	}
+	else
+	{
+		(*bin)->endianness = ARLIC_ENDIANNESS_LITTLE;	
+	}
+
+	return ARLIC_OK;
 }
 
-u64 Endianness_Change(u64 data, u8 size)
+u16 ArlicBinary_Resize(ArlicBinary *bin, size_t newSize)
+{
+	if (newSize == 0) 
+	{
+		ARLIC_LOG("ERROR IN: ArlicBinary_Resize(), you can't resize a buffer to 0\n");
+		return ARLIC_ERROR;
+	}
+
+	if(bin == NULL)
+	{
+		ARLIC_LOG("ERROR IN: ArlicBinary_Resize(), ArlicBinary *bin can't be NULL\n");
+		return ARLIC_ERROR;
+	}
+	
+	if(bin->data == NULL)
+	{
+		ARLIC_LOG("ERROR IN: ArlicBinary_Resize(), The Binary has not been created\n");
+		return ARLIC_ERROR;
+	}
+	
+	u8* tempDir;
+	
+	tempDir = realloc(bin->data, newSize);
+	
+	size_t originalSize = bin->size;
+	
+	if(tempDir == NULL)
+	{
+		ARLIC_LOG("ERROR IN: ArlicBinary_Resize(), ArlicBinary *bin can't be resized\n");
+		return ARLIC_ERROR;	
+	}
+	else
+	{	
+		bin->data = tempDir;
+		bin->size = newSize;
+		
+		if(bin->size <= bin->position)
+		{
+			bin->position = bin->size - 1;			
+		}	
+	}
+	
+	if(bin->size > originalSize)
+	{
+		memset(bin->data + originalSize, 0, bin->size - originalSize);	
+	}
+	
+	return ARLIC_OK;
+	
+}
+
+u64 ArlicEndianness_Change(u64 data, u8 size)
 {	
 	u64 result;
 	
@@ -65,7 +184,7 @@ u64 Endianness_Change(u64 data, u8 size)
 	{
 		case 0x2:
 					
-			result = (data << 8) | (data >> 8);
+			result = ((data & 0x00FFU) << 8) | ((data >> 8) & 0x00FFU);
 			
 			break;
 			
@@ -76,9 +195,10 @@ u64 Endianness_Change(u64 data, u8 size)
 			         ((data & 0x00FF0000U) >> 8)  | ((data & 0xFF000000U) >> 24);
 			
 			break;
+		//TODO: ADD 8 bytes and 16 bytes changes 
 			
 		default:
-			printf("ERROR, incorrect size -> in func: Endianness_Change");
+			ARLIC_LOG("ERROR IN: ArlicEndianness_Change(), invalid u8 size value");
 			result = data;
 	}
 	
@@ -86,177 +206,256 @@ u64 Endianness_Change(u64 data, u8 size)
 	
 }
 
-u8 Binary_Read_UInt8(Binary *bin)
-{	
 
-	if(bin == NULL)
-	{	
-		printf("ERROR, this binary don't have data\n");
-		return 0;	
-	}
-
-	if(bin->position + 1 > bin->size)
-	{
-		printf("ERROR, you can't read out the buffer\n");
-		return 0;
-	}
-	
-	u8 readValue;
-	
-	memcpy(&readValue, bin->data + (bin->position), 1);
-	
-	bin->position = bin->position + 1;
-	
-	return readValue;
-}
-
-u16 Binary_Read_UInt16(Binary *bin)
-{	
-	if(bin == NULL)
-	{	
-		printf("ERROR, this binary don't have data\n");
-		return 0;	
-	}
-
-	if(bin->position + 2 > bin->size)
-	{
-		printf("ERROR, you can't read out the buffer\n");
-		return 0;
-	}
-	
-	u16 readValue;
-	
-	memcpy(&readValue, bin->data + (bin->position), 2);
-	
-	if(bin->endianness == ENDIANNESS_BIG)
-	{
-		readValue = (u16)Endianness_Change(readValue, 2);
-	}
-	
-	bin->position = bin->position + 2;
-	
-	return readValue;
-}
- 
-u32 Binary_Read_UInt32(Binary *bin)
-{	
-	if(bin == NULL)
-	{	
-		printf("ERROR, this binary don't have data\n");
-		return 0;	
-	}
-
-	if(bin->position + 4 > bin->size)
-	{
-		printf("ERROR, you can't read out the buffer\n");
-		return 0;
-	}
-
-	u32 readValue;
-	
-	memcpy(&readValue, bin->data + (bin->position), 4);
-	
-	if(bin->endianness == ENDIANNESS_BIG)
-	{
-		readValue = (u32)Endianness_Change(readValue, 4);
-	}
-	
-	bin->position = bin->position + 4;
-	
-	return readValue;
-}
-
-s8 Binary_Read_Int8(Binary *bin)
-{	
-
-	if(bin == NULL)
-	{	
-		printf("ERROR, this binary don't have data\n");
-		return 0;	
-	}
-
-	if(bin->position + 1 > bin->size)
-	{
-		printf("ERROR, you can't read out the buffer\n");
-		return 0;
-	}
-	
-	s8 readValue;
-	
-	memcpy(&readValue, bin->data + (bin->position), 1);
-	
-	bin->position = bin->position + 1;
-	
-	return readValue;
-}
-
-s16 Binary_Read_Int16(Binary *bin)
-{	
-
-	if(bin == NULL)
-	{	
-		printf("ERROR, this binary don't have data\n");
-		return 0;	
-	}
-
-	if(bin->position + 2 > bin->size)
-	{
-		printf("ERROR, you can't read out the buffer\n");
-		return 0;
-	}
-	
-	s16 readValue;
-	
-	memcpy(&readValue, bin->data + (bin->position), 2);
-	
-	if(bin->endianness == ENDIANNESS_BIG)
-	{
-		readValue = (u16)Endianness_Change(readValue, 2);
-	}
-	
-	bin->position = bin->position + 2;
-	
-	return readValue;
-}
- 
-s32 Binary_Read_Int32(Binary *bin)
-{	
-
-	if(bin == NULL)
-	{	
-		printf("ERROR, this binary don't have data\n");
-		return 0;	
-	}
-
-	if(bin->position + 4 > bin->size)
-	{
-		printf("ERROR, you can't read out the buffer\n");
-		return 0;
-	}
-
-	s32 readValue;
-	
-	memcpy(&readValue, bin->data + (bin->position), 4);
-	
-	if(bin->endianness == ENDIANNESS_BIG)
-	{
-		readValue = (u32)Endianness_Change(readValue, 4);
-	}
-	
-	bin->position = bin->position + 4;
-	
-	return readValue;
-}
-
-void Binary_Write_UInt8(Binary *bin, u8 value)
+u16 ArlicBinary_SetPosition(ArlicBinary *bin, size_t position)
 {
 	if(bin == NULL)
 	{	
-		printf("ERROR, this binary don't have data\n");
-		return;	
+		ARLIC_LOG("ERROR IN: ArlicBinary_SetPosition(), ArlicBinary *bin can't be NULL\n");
+		return ARLIC_ERROR;
 	}
 	
-	char *tempInput;
+	if(position > bin->size)
+	{
+		ARLIC_LOG("ERROR IN: ArlicBinary_SetPosition(), position can't be greater than buffer size\n");
+		return ARLIC_ERROR;	
+	}
+	
+	bin->position = position;
+	
+	return ARLIC_OK;
+}
+
+size_t ArlicBinary_GetPosition(ArlicBinary *bin)
+{
+	return bin->position;
+}
+
+u16 ArlicBinary_GetPosition_s(ArlicBinary *bin, size_t *position)
+{
+	if(bin == NULL)
+	{	
+	    ARLIC_LOG("ERROR IN: ArlicBinary_SetPosition(), ArlicBinary *bin can't be NULL\n");
+		return ARLIC_ERROR;
+	}
+	
+	*position = bin->position;
+	
+	return ARLIC_OK;
+}
+
+
+size_t ArlicBinary_GetSize(ArlicBinary *bin)
+{
+	return bin->size;	
+}
+
+/*******************
+** READ FUNCTIONS **
+********************/
+
+
+u16 ArlicBinary_Read_UInt8(ArlicBinary *bin, u8 *readValue)
+{	
+	if(bin == NULL)
+	{	
+		ARLIC_LOG("ERROR IN: ArlicBinary_Read_UInt8(), ArlicBinary *bin can't be NULL\n");
+		return ARLIC_ERROR;
+	}
+
+	if(readValue == NULL)
+	{	
+		ARLIC_LOG("ERROR IN: ArlicBinary_Read_UInt8(), u8 *readValue can't be NULL\n");
+		return ARLIC_ERROR;
+	}
+	
+	if(bin->position + 1 > bin->size)
+	{
+		ARLIC_LOG("ERROR IN: ArlicBinary_Read_UInt8(), you can't read out the buffer\n");
+		return ARLIC_ERROR;
+	}
+	
+	memcpy(readValue, bin->data + (bin->position), 1);
+	
+	bin->position = bin->position + 1;
+	
+	return ARLIC_OK;
+}
+
+u16 ArlicBinary_Read_UInt16(ArlicBinary *bin, u16 *readValue)
+{	
+	if(bin == NULL)
+	{	
+		ARLIC_LOG("ERROR IN: ArlicBinary_Read_UInt16(), ArlicBinary *bin can't be NULL\n");	
+		return ARLIC_ERROR;
+	}
+	
+	if(readValue == NULL)
+	{	
+		ARLIC_LOG("ERROR IN: ArlicBinary_Read_UInt16(), u16 *readValue can't be NULL\n");	
+		return ARLIC_ERROR;
+	}
+
+	if(bin->position + 2 > bin->size)
+	{
+		ARLIC_LOG("ERROR IN: ArlicBinary_Read_UInt16(), you can't read out the buffer\n");
+		return ARLIC_ERROR;
+	}
+	
+	memcpy(readValue, bin->data + (bin->position), 2);
+	
+	if(bin->endianness == ARLIC_ENDIANNESS_BIG)
+	{
+		*readValue = (u16)ArlicEndianness_Change(*readValue, 2);
+	}
+	
+	bin->position = bin->position + 2;
+	
+	return ARLIC_OK;
+}
+ 
+u16 ArlicBinary_Read_UInt32(ArlicBinary *bin, u32 *readValue)
+{	
+	if(bin == NULL)
+	{	
+		ARLIC_LOG("ERROR IN: ArlicBinary_Read_UInt32(), ArlicBinary *bin can't be NULL\n");	
+		return ARLIC_ERROR;
+	}
+	
+	if(readValue == NULL)
+	{	
+		ARLIC_LOG("ERROR IN: ArlicBinary_Read_UInt32(), u32 *readValue can't be NULL\n");
+		return ARLIC_ERROR;
+	}
+
+	if(bin->position + 4 > bin->size)
+	{
+		ARLIC_LOG("ERROR IN: ArlicBinary_Read_UInt32(), you can't read out the buffer\n");
+		return ARLIC_ERROR;
+	}
+	
+	memcpy(readValue, bin->data + (bin->position), 4);
+	
+	if(bin->endianness == ARLIC_ENDIANNESS_BIG)
+	{
+		*readValue = (u32)ArlicEndianness_Change((u64)*readValue, 4);
+	}
+	
+	bin->position = bin->position + 4;
+	
+	return ARLIC_OK;
+}
+
+
+
+u16 ArlicBinary_Read_Int8(ArlicBinary *bin, s8 *readValue)
+{	
+	if(bin == NULL)
+	{	
+		ARLIC_LOG("ERROR IN: ArlicBinary_Read_Int8(), ArlicBinary *bin can't be NULL\n");
+		return ARLIC_ERROR;
+	}
+	
+	if(readValue == NULL)
+	{	
+		ARLIC_LOG("ERROR IN: ArlicBinary_Read_Int8(), s8 *readValue can't be NULL\n");
+		return ARLIC_ERROR;
+	}
+	
+	if(bin->position + 1 > bin->size)
+	{
+		ARLIC_LOG("ERROR IN: ArlicBinary_Read_Int8(), you can't read out the buffer\n");
+		return ARLIC_ERROR;
+	}
+	
+	memcpy(readValue, bin->data + (bin->position), 1);
+	
+	bin->position = bin->position + 1;
+	
+	return ARLIC_OK;
+}
+
+u16 ArlicBinary_Read_Int16(ArlicBinary *bin, s16 *readValue)
+{	
+	if(bin == NULL)
+	{	
+		ARLIC_LOG("ERROR IN: ArlicBinary_Read_Int16(), ArlicBinary *bin can't be NULL\n");	
+		return ARLIC_ERROR;
+	}
+	
+	if(readValue == NULL)
+	{	
+		ARLIC_LOG("ERROR IN: ArlicBinary_Read_Int16(), s16 *readValue can't be NULL\n");
+		return ARLIC_ERROR;
+	}
+
+	if(bin->position + 2 > bin->size)
+	{
+		ARLIC_LOG("ERROR IN: ArlicBinary_Read_Int16(), you can't read out the buffer\n");
+		return ARLIC_ERROR;
+	}
+	
+	memcpy(readValue, bin->data + (bin->position), 2);
+	
+	if(bin->endianness == ARLIC_ENDIANNESS_BIG)
+	{
+		*readValue = (s16)ArlicEndianness_Change((u64)*readValue, 2);
+	}
+	
+	bin->position = bin->position + 2;
+	
+	return ARLIC_OK;
+	
+}
+ 
+u16 ArlicBinary_Read_Int32(ArlicBinary *bin, s32 *readValue)
+{	
+	if(bin == NULL)
+	{	
+		ARLIC_LOG("ERROR IN: ArlicBinary_Read_Int32(), ArlicBinary *bin can't be NULL\n");
+		return ARLIC_ERROR;
+	}
+	
+	if(readValue == NULL)
+	{	
+		ARLIC_LOG("ERROR IN: ArlicBinary_Read_Int32(), s32 *readValue can't be NULL\n");	
+		return ARLIC_ERROR;
+	}
+
+	if(bin->position + 4 > bin->size)
+	{
+		ARLIC_LOG("ERROR IN: ArlicBinary_Read_Int32(), you can't read out the buffer\n");
+		return ARLIC_ERROR;
+	}
+	
+	memcpy(readValue, bin->data + (bin->position), 4);
+	
+	if(bin->endianness == ARLIC_ENDIANNESS_BIG)
+	{
+		*readValue = (s32)ArlicEndianness_Change((u64)*readValue, 4);
+	}
+	
+	bin->position = bin->position + 4;
+	
+	return ARLIC_OK;
+	
+}
+
+
+/********************
+** WRITE FUNCTIONS **
+*********************/
+
+
+u16 ArlicBinary_Write_UInt8(ArlicBinary *bin, u8 value)
+{
+	if(bin == NULL)
+	{	
+		ARLIC_LOG("ERROR IN: ArlicBinary_Write_UInt8(), ArlicBinary *bin can't be NULL\n");
+		return ARLIC_ERROR;
+	}
+	
+	u8 *tempInput;
 	size_t diference;
 	
 	if(bin->size < bin->position + 1)
@@ -271,25 +470,28 @@ void Binary_Write_UInt8(Binary *bin, u8 value)
 		}
 		else
 		{
-			printf("ERROR, can't write the file\n");
-			return;
+			
+			ARLIC_LOG("ERROR IN: ArlicBinary_Write_UInt8(), can't reallocate binary data\n");	
+			return ARLIC_ERROR;
 		}
 	}
 	
 	bin->data[bin->position] = value;
 		
 	bin->position += 1;
+	
+	return ARLIC_OK;
 }
 
-void Binary_Write_UInt16(Binary *bin, u16 value)
+u16 ArlicBinary_Write_UInt16(ArlicBinary *bin, u16 value)
 {
 	if(bin == NULL)
 	{	
-		printf("ERROR, this binary don't have data\n");
-		return;	
+		ARLIC_LOG("ERROR IN: ArlicBinary_Write_UInt16(), ArlicBinary *bin can't be NULL\n");	
+		return ARLIC_ERROR;
 	}
 	
-	char *tempInput;
+	u8 *tempInput;
 	size_t diference;
 	
 	if(bin->size < bin->position + 2)
@@ -304,32 +506,32 @@ void Binary_Write_UInt16(Binary *bin, u16 value)
 		}
 		else
 		{
-			printf("ERROR, can't write the file\n");
-			return;
+			ARLIC_LOG("ERROR IN: ArlicBinary_Write_UInt16(), can't reallocate binary data\n");	
+			return ARLIC_ERROR;
 		}
 	}
 		
-	if(bin->endianness == ENDIANNESS_BIG)
+	if(bin->endianness == ARLIC_ENDIANNESS_BIG)
 	{
-		value = Endianness_Change(value, 2);	
+		value = ArlicEndianness_Change(value, 2);	
 	}	
 	
 	memcpy(bin->data + (bin->position), &value, 2);
 		
 	bin->position += 2;
+	
+	return ARLIC_OK;
 }
 
-
-
-void Binary_Write_UInt32(Binary *bin, u32 value)
+u16 ArlicBinary_Write_UInt32(ArlicBinary *bin, u32 value)
 {
 	if(bin == NULL)
 	{	
-		printf("ERROR, this binary doesn't have data\n");
-		return;	
+		ARLIC_LOG("ERROR IN: ArlicBinary_Write_UInt32(), ArlicBinary *bin can't be NULL\n");	
+		return ARLIC_ERROR;
 	}
 	
-	char *tempInput;
+	u8 *tempInput;
 	size_t diference;
 	
 	if(bin->size < bin->position + 4)
@@ -344,31 +546,34 @@ void Binary_Write_UInt32(Binary *bin, u32 value)
 		}
 		else
 		{
-			printf("ERROR, can't write the file\n");
-			return;
+			ARLIC_LOG("ERROR IN: ArlicBinary_Write_UInt32(), can't reallocate binary data\n");	
+			return ARLIC_ERROR;
 		}
 	}
 		
-	if(bin->endianness == ENDIANNESS_BIG)
+	if(bin->endianness == ARLIC_ENDIANNESS_BIG)
 	{
-		value = Endianness_Change(value, 4);	
+		value = ArlicEndianness_Change(value, 4);	
 	}	
 	
 	memcpy(bin->data + (bin->position), &value, 4);
 	
 	bin->position += 4;
+	
+	return ARLIC_OK;
 }
 
-void Binary_Write_Int8(Binary *bin, s8 value)
+
+
+u16 ArlicBinary_Write_Int8(ArlicBinary *bin, s8 value)
 {
-	
 	if(bin == NULL)
 	{	
-		printf("ERROR, this binary doesn't have data\n");
-		return;	
+		ARLIC_LOG("ERROR IN: ArlicBinary_Write_Int8(), ArlicBinary *bin can't be NULL\n");
+		return ARLIC_ERROR;
 	}
 	
-	char *tempInput;
+	u8 *tempInput;
 	size_t diference;
 	
 	if(bin->size < bin->position + 1)
@@ -383,25 +588,28 @@ void Binary_Write_Int8(Binary *bin, s8 value)
 		}
 		else
 		{
-			printf("ERROR, can't write the file\n");
-			return;
+			ARLIC_LOG("ERROR IN: ArlicBinary_Write_Int8(), can't reallocate binary data\n");	
+			return ARLIC_ERROR;
 		}
 	}
 	
 	bin->data[bin->position] = value;
 		
 	bin->position += 1;
+	
+	return ARLIC_OK;
+	
 }
 
-void Binary_Write_Int16(Binary *bin, s16 value)
+u16 ArlicBinary_Write_Int16(ArlicBinary *bin, s16 value)
 {
 	if(bin == NULL)
 	{	
-		printf("ERROR, this binary don't have data\n");
-		return;	
+		ARLIC_LOG("ERROR IN: ArlicBinary_Write_Int16(), ArlicBinary *bin can't be NULL\n");
+		return ARLIC_ERROR;
 	}
 	
-	char *tempInput;
+	u8 *tempInput;
 	size_t diference;
 	
 	if(bin->size < bin->position + 2)
@@ -416,33 +624,34 @@ void Binary_Write_Int16(Binary *bin, s16 value)
 		}
 		else
 		{
-			printf("ERROR, can't write the file\n");
-			return;
+			ARLIC_LOG("ERROR IN: ArlicBinary_Write_Int16(), can't reallocate binary data\n");
+			return ARLIC_ERROR;
 		}
 	}
 		
-	if(bin->endianness == ENDIANNESS_BIG)
+	if(bin->endianness == ARLIC_ENDIANNESS_BIG)
 	{
-		value = Endianness_Change(value, 2);	
+		value = ArlicEndianness_Change(value, 2);	
 	}	
 	
 	memcpy(bin->data + (bin->position), &value, 2);
 		
 	bin->position += 2;
+	
+	return ARLIC_OK;
 }
 
 
 
-void Binary_Write_Int32(Binary *bin, s32 value)
+u16 ArlicBinary_Write_Int32(ArlicBinary *bin, s32 value)
 {
-	
 	if(bin == NULL)
 	{	
-		printf("ERROR, this binary don't have data\n");
-		return;	
+		ARLIC_LOG("ERROR IN: ArlicBinary_Write_Int32(), ArlicBinary *bin can't be NULL\n");	
+		return ARLIC_ERROR;
 	}
 	
-	char *tempInput;
+	u8 *tempInput;
 	size_t diference;
 	
 	if(bin->size < bin->position + 4)
@@ -457,40 +666,50 @@ void Binary_Write_Int32(Binary *bin, s32 value)
 		}
 		else
 		{
-			printf("ERROR, can't write the file\n");
-			return;
+			ARLIC_LOG("ERROR IN: ArlicBinary_Write_Int32(), can't reallocate binary data\n");	
+			return ARLIC_ERROR;
 		}
 	}
 		
-	if(bin->endianness == ENDIANNESS_BIG)
+	if(bin->endianness == ARLIC_ENDIANNESS_BIG)
 	{
-		value = Endianness_Change(value, 4);	
+		value = ArlicEndianness_Change(value, 4);	
 	}	
 	
 	memcpy(bin->data + (bin->position), &value, 4);
 	
 	bin->position += 4;
+	
+	return ARLIC_OK;
+	
 }
 
-void Binary_Destroy(Binary *bin)
+void ArlicBinary_Destroy(ArlicBinary *bin)
 {
 	free(bin->data);
+	free(bin);
 }
 
-u8 Binary_SafeBinaryInFile(Binary *bin, char *filePath)
+u16 ArlicBinary_SaveBinaryInFile(ArlicBinary *bin, const char *filePath)
 {		
-	if(bin == NULL || bin->data == NULL)
-	{
-		printf("ERROR, this binary don't have data\n");
-		return 0;	
+	if(bin == NULL)
+	{	
+		ARLIC_LOG("ERROR IN: ArlicBinary_SaveBinaryInFile(), ArlicBinary *bin can't be NULL\n");	
+		return ARLIC_ERROR;
+	}
+	
+	if(bin->data == NULL)
+	{	
+		ARLIC_LOG("ERROR IN: ArlicBinary_SaveBinaryInFile(), this binary don't have data\n");	
+		return ARLIC_ERROR;
 	}
 	
 	FILE* binaryFile = fopen(filePath, "wb");
 	
 	if(binaryFile == NULL)
 	{
-		printf("ERROR, can't create file\n");
-		return 0;
+		ARLIC_LOG("ERROR IN: ArlicBinary_SaveBinaryInFile(), can't create File\n");	
+		return ARLIC_ERROR;
 	}	
 	
 	size_t bytesCopied = fwrite(bin->data, 1, bin->size, binaryFile);
@@ -499,18 +718,19 @@ u8 Binary_SafeBinaryInFile(Binary *bin, char *filePath)
 		
 	if(bytesCopied != bin->size)
 	{
-		printf("ERROR, can't save the file or incomplete writing\n");
-		return 0;
+		ARLIC_LOG("ERROR IN: ArlicBinary_SaveBinaryInFile(), can't save the file or incomplete writing\n");	
+		return ARLIC_ERROR;
 	}
 		
-	return 1;
+	return ARLIC_OK;
 }
 
-void Get_BaseDirectory(char* dir) //This only works in Windows
+void Get_BaseDirectory(char dir[]) //This only works in Windows
 {
 	char* lastBar;
 	
-	GetModuleFileName(NULL, dir, 256);
+	GetModuleFileName(NULL, dir, 1024);
+	
 	lastBar = strrchr(dir, '\\');
 	*(lastBar + 1) = '\0';
 }
