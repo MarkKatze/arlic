@@ -88,6 +88,8 @@ u16 ArlicBinary_LoadFromFile(ArlicBinary **bin, u16 endianness, const char *file
 	if(file == NULL)
 	{
 		ARLIC_LOG("ERROR IN: ArlicBinary_LoadFromFile(), can't load the File\n");
+  free(*bin);
+  *bin = NULL;
 		return ARLIC_ERROR;
 	}
 	
